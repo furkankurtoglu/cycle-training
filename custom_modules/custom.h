@@ -1,5 +1,3 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<!--
 /*
 ###############################################################################
 # If you use PhysiCell in your project, please cite PhysiCell and the version #
@@ -66,102 +64,31 @@
 #                                                                             #
 ###############################################################################
 */
---> 
 
-<!--
-<user_details />
--->
+#include "../core/PhysiCell.h"
+#include "../modules/PhysiCell_standard_modules.h" 
 
-<PhysiCell_settings version="devel-version">
-	<domain>
-		<x_min>-500</x_min>
-		<x_max>500</x_max>
-		<y_min>-500</y_min>
-		<y_max>500</y_max>
-		<z_min>-10</z_min>
-		<z_max>10</z_max>
-		<dx>20</dx>
-		<dy>20</dy>
-		<dz>20</dz>
-		<use_2D>true</use_2D>
-	</domain>
-	
-	<overall>
-		<max_time units="min">5960</max_time> <!-- 5 days * 24 h * 60 min -->
-		<time_units>min</time_units>
-		<space_units>micron</space_units>
-	</overall>
-	
-	<parallel>
-		<omp_num_threads>8</omp_num_threads>
-	</parallel> 
-	
-	<save>
-		<folder>output</folder> <!-- use . for root --> 
+using namespace BioFVM; 
+using namespace PhysiCell;
 
-		<full_data>
-			<interval units="min">60</interval>
-			<enable>true</enable>
-		</full_data>
-		
-		<SVG>
-			<interval units="min">60</interval>
-			<enable>true</enable>
-		</SVG>
-		
-		<legacy_data>
-			<enable>false</enable>
-		</legacy_data>
-	</save>
-	
-	<microenvironment_setup>
-		<variable name="oxygen" units="mmHg" ID="0">
-			<physical_parameter_set>
-				<diffusion_coefficient units="micron^2/min">100000.0</diffusion_coefficient>
-				<decay_rate units="1/min">0.0</decay_rate>  
-			</physical_parameter_set>
-			<initial_condition units="mmHg">38.0</initial_condition>
-			<Dirichlet_boundary_condition units="mmHg" enabled="true">38.0</Dirichlet_boundary_condition>
-		</variable>
-		
-		<options>
-			<calculate_gradients>false</calculate_gradients>
-			<track_internalized_substrates_in_each_agent>false</track_internalized_substrates_in_each_agent>
-			<!-- not yet supported --> 
-			<initial_condition type="matlab" enabled="false">
-				<filename>./config/initial.mat</filename>
-			</initial_condition>
-			<!-- not yet supported --> 
-			<dirichlet_nodes type="matlab" enabled="false">
-				<filename>./config/dirichlet.mat</filename>
-			</dirichlet_nodes>
-		</options>
-	</microenvironment_setup>	
-	
-	<user_parameters>
-		<random_seed type="int" units="dimensionless">0</random_seed> 
-		<!-- example parameters from the template --> 
-		
-		<!-- motile cell type parameters --> 
-		<initial_tumor_radius type="double" units="micrometer" description="initial tumor radius">150</initial_tumor_radius>
-        <r01 type="double" units="1/min" description="transition rate between G0/G1 and S">0.001</r01>
-        <r01_arrest type="bool" units="arrest function according to oxygen">true</r01_arrest>
-        <oxygen_threshold 
-        
-        
-        <r12 type="double" units="1/min" description="transition rate between S and G2">0.0007</r12>
-        <r12_arrest type="bool" units="arrest function according to cell volume" >true</r12_arrest>
-        <oxygen_threshold
-        
-        <r23 type="double" units="1/min" description="transition rate between G2 and M">0.008</r23>
-        <r23_arrest type="bool" units="arrest function according to nuclear volume">true</r23_arrest>
-        <oxygen_threshold
-        
-        <r30 type="double" units="1/min" description="transition rate between M and G0/G1 (divides)">0.009</r30>
-        <r23_arrest type="bool" units="arrest function according to pressure level">true</r23_arrest>
-        <oxygen_threshold
+void tumor_cell_phenotype_with_oncoprotein( Cell* pCell, Phenotype& phenotype, double dt ); 
+
+// any additional cell types (beyond cell_defaults)
+
+extern Cell_Definition motile_cell; 
+
+// custom cell phenotype functions could go here 
+std::vector<std::vector<double>> create_cell_circle_positions(double cell_radius, double sphere_radius);
+void cycle_arrest_function( Cell* pCell, Phenotype& phenotype , double dt );
 
 
-	</user_parameters>
-	
-</PhysiCell_settings>
+// setup functions to help us along 
+void create_cell_types( void );
+void setup_tissue( void ); 
+
+// set up the BioFVM microenvironment 
+void setup_microenvironment( void ); 
+
+// custom pathology coloring function 
+
+std::vector<std::string> my_coloring_function( Cell* );
