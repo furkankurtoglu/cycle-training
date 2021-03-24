@@ -117,6 +117,7 @@ void create_cell_types( void )
 	int apoptosis_model_index = cell_defaults.phenotype.death.find_death_model_index( "Apoptosis" );
 	int necrosis_model_index = cell_defaults.phenotype.death.find_death_model_index( "Necrosis" );
 	int oxygen_substrate_index = microenvironment.find_density_index( "oxygen" ); 
+    int lactate_substrate_index = microenvironment.find_density_index( "lactate" );
 
 	int G0G1_index = flow_cytometry_separated_cycle_model.find_phase_index( PhysiCell_constants::G0G1_phase );
 	int S_index = flow_cytometry_separated_cycle_model.find_phase_index( PhysiCell_constants::S_phase );
@@ -156,6 +157,11 @@ void create_cell_types( void )
 	cycle_cell.phenotype.cycle.data.transition_rate(S_index,G2_index) = parameters.doubles( "r12" );
 	cycle_cell.phenotype.cycle.data.transition_rate(G2_index,M_index) = parameters.doubles( "r23" );
     cycle_cell.phenotype.cycle.data.transition_rate(G2_index,M_index) = parameters.doubles( "r30" );
+    
+    
+    cycle_cell.phenotype.secretion.uptake_rates[lactate_substrate_index] = 0.0; 
+	cycle_cell.phenotype.secretion.secretion_rates[lactate_substrate_index] = 0.01; 
+	cycle_cell.phenotype.secretion.saturation_densities[lactate_substrate_index] = 10.0;  
 	
 	return; 
 }
@@ -203,42 +209,98 @@ void setup_tissue( void )
 
 void cycle_arrest_function( Cell* pCell, Phenotype& phenotype , double dt )
 {
+
+    int G0G1_index = flow_cytometry_separated_cycle_model.find_phase_index( PhysiCell_constants::G0G1_phase );
+	int S_index = flow_cytometry_separated_cycle_model.find_phase_index( PhysiCell_constants::S_phase );
+    int G2_index = flow_cytometry_separated_cycle_model.find_phase_index( PhysiCell_constants::G2_phase );
+    int M_index = flow_cytometry_separated_cycle_model.find_phase_index( PhysiCell_constants::M_phase );   
     bool r01_bool = parameters.bools( "r01_arrest" );
-    bool r12_bool = parameters.bools( "r01_arrest" );
-    bool r23_bool = parameters.bools( "r01_arrest" );
+    bool r12_bool = parameters.bools( "r12_arrest" );
+    bool r23_bool = parameters.bools( "r23_arrest" );
+    bool r30_bool = parameters.bools( "r30_arrest" );    
     
-    if (r01_bool ==1)
+    //std::cout << "Arresting" << r01_bool << r12_bool << r23_bool << std::endl;
+    
+
+
+	
+
+    
+    
+    if (r01_bool == 1)
     {
-        // oxygen statement here
+        // oxygen arresting
         static int oxygen_i = get_default_microenvironment()->find_density_index( "oxygen" );
         double pO2 = (pCell->nearest_density_vector())[oxygen_i];
-        if ( pO2 > 20);
+        static double oxy_thr = parameters.doubles( "oxygen_threshold" );
+        if ( pO2 < oxy_thr)
         {
-            cycle_cell.phenotype.cycle.data.transition_rate(G0G1_index,S_index) = 0.0;
+            phenotype.cycle.data.transition_rate(G0G1_index,S_index) = 0.0;
+            //std::cout << "Arrested" << std::endl;
+        }
+        if ( pO2 > oxy_thr)
+        {
+            phenotype.cycle.data.transition_rate(G0G1_index,S_index) = parameters.doubles( "r01" );
         }
         
     }
     
-    if (r12_bool ==1)
+    if (r12_bool == 1)
     {
-        // volume statement here
-        
-        
-        
-        
-        // 
-        cycle_cell.phenotype.cycle.data.transition_rate(G0G1_index,S_index)
+        // lactate arresting
+        static int lactate_i = get_default_microenvironment()->find_density_index( "lactate" );
+        double pLactate = (pCell->nearest_density_vector())[lactate_i];
+        static double lac_thr = parameters.doubles( "lactate_threshold" );
+        if ( pLactate > lac_thr)
+        {
+            phenotype.cycle.data.transition_rate(S_index,G2_index) = 0.0;
+            //std::cout << "Arrested" << std::endl;
+        }
+        if ( pLactate < lac_thr)
+        {
+            phenotype.cycle.data.transition_rate(S_index,G2_index) = parameters.doubles( "r12" );
+        }
     }
 
 
 
-    if (r23_bool ==1)
+    if (r23_bool == 1)
     {
-        // pressure statement here
-       
-        // 
-        cycle_cell.phenotype.cycle.data.transition_rate(G0G1_index,S_index)
+        // pressure arrest
+        double cell_pressure = pCell->state.simple_pressure;
+        static double pre_thr = parameters.doubles( "pressure_threshold" );
+        if ( cell_pressure > pre_thr)
+        {
+            phenotype.cycle.data.transition_rate(G2_index,M_index) = 0.0;
+            //std::cout << "Arrested" << std::endl;
+        }
+        if ( cell_pressure < pre_thr)
+        {
+            phenotype.cycle.data.transition_rate(G2_index,M_index) = parameters.doubles( "r23" );
+            //std::cout << "Arrested" << std::endl;
+        }
     }
+
+
+    if (r30_bool == 1)
+    {
+        // volume arrest
+        double volume = phenotype.volume.total;
+        //std::cout << volume << std::endl;
+        static double vol_thr = parameters.doubles( "volume_threshold" );
+        if ( volume < vol_thr)
+        {
+            phenotype.cycle.data.transition_rate(M_index,G0G1_index) = 0.0;
+            //std::cout << "Arrested" << std::endl;
+        }
+        if ( volume > vol_thr)
+        {
+            phenotype.cycle.data.transition_rate(G2_index,M_index) = parameters.doubles( "r30" );
+            //std::cout << "Arrested" << std::endl;
+        }
+        
+    }    
+    
 
     
 	return;
@@ -257,31 +319,29 @@ std::vector<std::string> my_coloring_function( Cell* pCell )
 	{
 		if( pCell->phenotype.cycle.current_phase_index() == 0 )
         {
-            output[0] = "green"; 
-            output[2] = "green"; 
-        }
-        
-        if( pCell->phenotype.cycle.current_phase_index() == 1 )
-        {
             output[0] = "red"; 
             output[2] = "red"; 
         }
         
+        if( pCell->phenotype.cycle.current_phase_index() == 1 )
+        {
+            output[0] = "green"; 
+            output[2] = "green"; 
+        }
+        
         if( pCell->phenotype.cycle.current_phase_index() == 2 )
         {
-            output[0] = "blue"; 
-            output[2] = "blue"; 
+            output[0] = "cornflowerblue"; 
+            output[2] = "cornflowerblue"; 
         }
         
         if( pCell->phenotype.cycle.current_phase_index() == 3 )
         {
-            output[0] = "magenta"; 
-            output[2] = "magenta"; 
+            output[0] = "mediumblue"; 
+            output[2] = "mediumblue"; 
         }
         
-        
-        
-        
+
 	}
 	
 	return output; 
