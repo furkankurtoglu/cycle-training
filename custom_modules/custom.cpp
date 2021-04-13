@@ -117,7 +117,7 @@ void create_cell_types( void )
 	int apoptosis_model_index = cell_defaults.phenotype.death.find_death_model_index( "Apoptosis" );
 	int necrosis_model_index = cell_defaults.phenotype.death.find_death_model_index( "Necrosis" );
 	int oxygen_substrate_index = microenvironment.find_density_index( "oxygen" ); 
-    int lactate_substrate_index = microenvironment.find_density_index( "lactate" );
+    int chemokine_substrate_index = microenvironment.find_density_index( "chemokine" );
 
 	int G0G1_index = flow_cytometry_separated_cycle_model.find_phase_index( PhysiCell_constants::G0G1_phase );
 	int S_index = flow_cytometry_separated_cycle_model.find_phase_index( PhysiCell_constants::S_phase );
@@ -156,12 +156,34 @@ void create_cell_types( void )
 	cycle_cell.phenotype.cycle.data.transition_rate(G0G1_index,S_index) = parameters.doubles( "r01" );
 	cycle_cell.phenotype.cycle.data.transition_rate(S_index,G2_index) = parameters.doubles( "r12" );
 	cycle_cell.phenotype.cycle.data.transition_rate(G2_index,M_index) = parameters.doubles( "r23" );
-    cycle_cell.phenotype.cycle.data.transition_rate(G2_index,M_index) = parameters.doubles( "r30" );
+    cycle_cell.phenotype.cycle.data.transition_rate(M_index,G0G1_index) = parameters.doubles( "r30" );
     
     
-    cycle_cell.phenotype.secretion.uptake_rates[lactate_substrate_index] = 0.0; 
-	cycle_cell.phenotype.secretion.secretion_rates[lactate_substrate_index] = 0.01; 
-	cycle_cell.phenotype.secretion.saturation_densities[lactate_substrate_index] = 10.0;  
+    if (parameters.bools("r01_fixed_duration"))
+    {
+        cycle_cell.phenotype.cycle.model().phase_link(G0G1_index,S_index).fixed_duration = parameters.bools("r01_fixed_duration");
+    }
+    
+    if (parameters.bools("r12_fixed_duration"))
+    {
+        cycle_cell.phenotype.cycle.model().phase_link(S_index,G2_index).fixed_duration = parameters.bools("r12_fixed_duration");
+    }
+    
+    if (parameters.bools("r23_fixed_duration"))
+    {
+        cycle_cell.phenotype.cycle.model().phase_link(G2_index,M_index).fixed_duration = parameters.bools("r23_fixed_duration");
+    }    
+    
+    if (parameters.bools("r23_fixed_duration"))
+    {
+        cycle_cell.phenotype.cycle.model().phase_link(M_index,G0G1_index).fixed_duration = parameters.bools("r30_fixed_duration");
+    } 
+
+    
+    
+    cycle_cell.phenotype.secretion.uptake_rates[chemokine_substrate_index] = 0.0; 
+	cycle_cell.phenotype.secretion.secretion_rates[chemokine_substrate_index] = 0.01; 
+	cycle_cell.phenotype.secretion.saturation_densities[chemokine_substrate_index] = 10.0;  
 	
 	return; 
 }
@@ -180,6 +202,35 @@ void setup_microenvironment( void )
 	
 	initialize_microenvironment(); 	
 	
+    
+    if (parameters.bools("oxygen_gradient"))
+    {
+        double oxy = 40.0;  // IC
+        double oxy_del = 10.0;
+        
+        double x;
+        double xmin = -500.;
+        
+        int nregions = 4;
+        double xdel = 1000./nregions;
+        // 5 regions across x: [-500:-300:-100:100:300:500]
+        std::cout << "setup_microenvironment: num voxels= " << microenvironment.number_of_voxels() << std::endl;
+        for( int n=0; n < microenvironment.number_of_voxels(); n++ )
+        {
+            // x coordinate of the nth voxel's center
+            x = microenvironment.mesh.voxels[n].center[0];
+            for( int iregion=1; iregion <= nregions; iregion++ )
+            {
+                if (x < (xmin + iregion*xdel))
+                {
+                    microenvironment(n)[0] = oxy - (iregion-1)*oxy_del;
+                    break;
+                }
+                // oxy -= iregion-5;
+                // glu -= iregion-2;
+            }
+        }
+    }
 	return; 
 }
 
@@ -189,9 +240,27 @@ void setup_tissue( void )
 	
 	Cell* pCell;
     
+    int seeding_method  = parameters.ints("seeding_method");
+    
+    double initial_tumor_radius =  0;
+    if (seeding_method == 1)
+    {
+        initial_tumor_radius = 8.2;
+    }
+    else if (seeding_method == 2)
+    {
+        initial_tumor_radius = 150;
+    }
+    else
+    {
+        std::cout << "WARNING! The seeding method should be either 1 or 2" << std::endl;
+        std::cout << "Seeding only one cell..." << std::endl;
+        initial_tumor_radius = 8.2;
+    }
+  
+
     double cell_radius = cell_defaults.phenotype.geometry.radius; 
 	double cell_spacing = 0.8 * 2.0 * cell_radius; 
-	double initial_tumor_radius =  parameters.doubles("initial_tumor_radius");
 	
 	std::vector<std::vector<double>> positions = create_cell_circle_positions(cell_radius,initial_tumor_radius);
 
@@ -217,7 +286,8 @@ void cycle_arrest_function( Cell* pCell, Phenotype& phenotype , double dt )
     bool r01_bool = parameters.bools( "r01_arrest" );
     bool r12_bool = parameters.bools( "r12_arrest" );
     bool r23_bool = parameters.bools( "r23_arrest" );
-    bool r30_bool = parameters.bools( "r30_arrest" );    
+    bool r30_bool = parameters.bools( "r30_arrest" );
+    
     
     //std::cout << "Arresting" << r01_bool << r12_bool << r23_bool << std::endl;
     
@@ -247,16 +317,16 @@ void cycle_arrest_function( Cell* pCell, Phenotype& phenotype , double dt )
     
     if (r12_bool == 1)
     {
-        // lactate arresting
-        static int lactate_i = get_default_microenvironment()->find_density_index( "lactate" );
-        double pLactate = (pCell->nearest_density_vector())[lactate_i];
-        static double lac_thr = parameters.doubles( "lactate_threshold" );
-        if ( pLactate > lac_thr)
+        // chemokine arresting
+        static int chemokine_i = get_default_microenvironment()->find_density_index( "chemokine" );
+        double pLactate = (pCell->nearest_density_vector())[chemokine_i];
+        static double chem_thr = parameters.doubles( "chemokine_threshold" );
+        if ( pLactate > chem_thr)
         {
             phenotype.cycle.data.transition_rate(S_index,G2_index) = 0.0;
             //std::cout << "Arrested" << std::endl;
         }
-        if ( pLactate < lac_thr)
+        if ( pLactate < chem_thr)
         {
             phenotype.cycle.data.transition_rate(S_index,G2_index) = parameters.doubles( "r12" );
         }
@@ -307,9 +377,51 @@ void cycle_arrest_function( Cell* pCell, Phenotype& phenotype , double dt )
 }
 
 
-
-
 std::vector<std::string> my_coloring_function( Cell* pCell )
+{
+	// start with flow cytometry coloring 
+	
+	std::vector<std::string> output = false_cell_coloring_cytometry(pCell); 
+    char szTempString [128];
+	if( pCell->phenotype.death.dead == false && pCell->type == 1 )
+	{
+		if( pCell->phenotype.cycle.current_phase_index() == 0 )
+        {
+            sprintf( szTempString , "rgb(230,97,1)");
+            output[0].assign( szTempString );
+            output[2].assign( szTempString );
+        }
+        
+        if( pCell->phenotype.cycle.current_phase_index() == 1 )
+        {
+            char szTempString [128];
+            sprintf( szTempString , "rgb(253,184,99)");
+            output[0].assign( szTempString );
+            output[2].assign( szTempString );
+        }
+        
+        if( pCell->phenotype.cycle.current_phase_index() == 2 )
+        {
+            sprintf( szTempString , "rgb(178,171,210)");
+            output[0].assign( szTempString );
+            output[2].assign( szTempString );
+        }
+        
+        if( pCell->phenotype.cycle.current_phase_index() == 3 )
+        {
+            sprintf( szTempString , "rgb(94,60,153)");
+            output[0].assign( szTempString );
+            output[2].assign( szTempString );
+        }
+        
+
+	}
+	
+	return output; 
+}
+
+ 
+/*  std::vector<std::string> my_coloring_function( Cell* pCell )
 {
 	// start with flow cytometry coloring 
 	
@@ -345,8 +457,7 @@ std::vector<std::string> my_coloring_function( Cell* pCell )
 	}
 	
 	return output; 
-}
-
+} */
 
 std::vector<std::vector<double>> create_cell_circle_positions(double cell_radius, double sphere_radius)
 {

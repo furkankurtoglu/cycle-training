@@ -87,25 +87,25 @@
 	</domain>
 	
 	<overall>
-		<max_time units="min">5960</max_time> <!-- 5 days * 24 h * 60 min -->
+		<max_time units="min">1440</max_time> 
 		<time_units>min</time_units>
 		<space_units>micron</space_units>
 	</overall>
 	
 	<parallel>
-		<omp_num_threads>8</omp_num_threads>
+		<omp_num_threads>4</omp_num_threads>
 	</parallel> 
 	
 	<save>
 		<folder>output</folder> <!-- use . for root --> 
 
 		<full_data>
-			<interval units="min">60</interval>
+			<interval units="min">10</interval>
 			<enable>true</enable>
 		</full_data>
 		
 		<SVG>
-			<interval units="min">60</interval>
+			<interval units="min">10</interval>
 			<enable>true</enable>
 		</SVG>
 		
@@ -117,14 +117,14 @@
 	<microenvironment_setup>
 		<variable name="oxygen" units="mmHg" ID="0">
 			<physical_parameter_set>
-				<diffusion_coefficient units="micron^2/min">100000.0</diffusion_coefficient>
+				<diffusion_coefficient units="micron^2/min">0.0</diffusion_coefficient>
 				<decay_rate units="1/min">0.0</decay_rate>  
 			</physical_parameter_set>
-			<initial_condition units="mmHg">38.0</initial_condition>
-			<Dirichlet_boundary_condition units="mmHg" enabled="false">38.0</Dirichlet_boundary_condition>
+			<initial_condition units="mmHg">20.0</initial_condition>
+			<Dirichlet_boundary_condition units="mmHg" enabled="false">20.0</Dirichlet_boundary_condition>
 		</variable>
         
-		<variable name="lactate" units="mM" ID="1">
+		<variable name="chemokine" units="mM" ID="1">
 			<physical_parameter_set>
 				<diffusion_coefficient units="micron^2/min">30000.0</diffusion_coefficient>
 				<decay_rate units="1/min">0.0</decay_rate>  
@@ -152,29 +152,36 @@
 		<!-- example parameters from the template --> 
 		
 
-		<!-- motile cell type parameters --> 
-		<initial_tumor_radius type="double" units="micrometer" description="initial tumor radius">150</initial_tumor_radius>
+		<!-- motile cell type parameters -->
+        <div_tum type="divider" description="---Initial Parameters---"/>        
+		<seeding_method type="int" units="micrometer" description="For seeding one cell => 1, For tissue seeding => 2">1</seeding_method>
         
-        <div_G0G1 type="divider" description="---Phase link between G0/G1 and S---"/>
+        <div_rates type="divider" description="---Transition Rates---"/>
+        <r01 type="double" units="1/min" description="transition rate between G0/G1 and S">0.01666</r01>
+        <r01_fixed_duration type="bool" units="" description="True if transition rate (r01) are fixed duration.">false</r01_fixed_duration>
+        <r12 type="double" units="1/min" description="transition rate between S and G2">0.01666</r12>
+        <r12_fixed_duration type="bool" units="" description="True if transition rate (r12) are fixed duration.">false</r12_fixed_duration>
+        <r23 type="double" units="1/min" description="transition rate between G2 and M">0.01666</r23>
+        <r23_fixed_duration type="bool" units="" description="True if transition rate (r23) are fixed duration.">false</r23_fixed_duration>
+        <r30 type="double" units="1/min" description="transition rate between M and G0/G1">0.01666</r30>
+        <r30_fixed_duration type="bool" units="" description="True if transition rate (r30) are fixed duration.">false</r30_fixed_duration>
         
-        <r01 type="double" units="1/min" description="transition rate between G0/G1 and S">0.001</r01>
-        <r01_arrest type="bool" description="if true, it arrests phase link ">false</r01_arrest>
-        <oxygen_threshold type="double" units="1/min" description="environmental oxygen threshold to pass this phase transition">40</oxygen_threshold>
+        <div_G0G1 type="divider" description="---Arresting phase link between G0/G1 and S---"/>
+        <r01_arrest type="bool" description="if true and conditions were matched, it arrests phase link.">false</r01_arrest>
+        <oxygen_threshold type="double" units="mmHg" description="environmental oxygen threshold for phase transition. If less than threshold, it stops">24</oxygen_threshold>
+        <oxygen_gradient type="bool" units="" description="True, if environment has oxygen gradient">false</oxygen_gradient>
         
-        <div_S type="divider" description="---Phase link between S and G2---"/>
-        <r12 type="double" units="1/min" description="transition rate between S and G2">0.001</r12>
-        <r12_arrest type="bool" description="arrest function according to cell volume" >false</r12_arrest>
-        <lactate_threshold type="double" units="1/min" description="environmental lactate threshold to stall this phase transition">10.0</lactate_threshold>
+        <div_S type="divider" description="---Arresting phase link between S and G2---"/>
+        <r12_arrest type="bool" description="arrest function according to chemokine level" >false</r12_arrest>
+        <chemokine_threshold type="double" units="mM" description="environmental chemokine threshold for phase transition. If more, it stops">10.0</chemokine_threshold>
 
-        <div_G2 type="divider" description="---Phase link between G2 an M---"/>
-        <r23 type="double" units="1/min" description="transition rate between G2 and M">0.001</r23>
-        <r23_arrest type="bool" description="arrest function according to nuclear volume">false</r23_arrest>
-        <pressure_threshold type="double" units="1/min" description="cell pressure threshold to stall this phase transition">1.0</pressure_threshold>
+        <div_G2 type="divider" description="---Arresting phase link between G2 an M---"/>
+        <r23_arrest type="bool" description="arrest function according to pressure level">false</r23_arrest>
+        <pressure_threshold type="double" units="dimensionless" description="cell pressure threshold to stall this phase transition. If more, it stops">1.0</pressure_threshold>
         
-        <div_M type="divider" description="---Phase link between M an G0/G1 (division)---"/>
-        <r30 type="double" units="1/min" description="transition rate between M and G0/G1">0.001</r30>
-        <r30_arrest type="bool" description="arrest function according to pressure level">false</r30_arrest>
-        <volume_threshold type="double" units="1/min" description="cell pressure threshold to stall this phase transition">2490.0</volume_threshold>
+        <div_M type="divider" description="---Arresting phase link between M an G0/G1 (division)---"/>
+        <r30_arrest type="bool" description="arrest function according to cell volume">false</r30_arrest>
+        <volume_threshold type="double" units="micron^3" description="target cell volume threshold. If less, it does not cycle.">2490.0</volume_threshold>
 
 	</user_parameters>
 	

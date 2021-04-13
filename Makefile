@@ -183,3 +183,7 @@ untar:
 
 animation:
 	cd output;magick mogrify -format jpg snapshot*.svg;magick snapshot*.jpg animation.gif
+    
+make notepad_edit:
+	notepad++ main.cpp ./config/PhysiCell_settings.xml ./custom_modules/custom.h ./custom_modules/custom.cpp
+    
